@@ -492,14 +492,33 @@ alloc_frame (struct thread *t, size_t size)
    empty.  (If the running thread can continue running, then it
    will be in the run queue.)  If the run queue is empty, return
    idle_thread. */
+
+/*魔改一下，找到优先级最高的*/
+bool T_CMP (const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+  if(list_entry(a,struct thread,elem)->priority > list_entry(b,struct thread,elem)->priority)
+    return true;
+  return false;
+}
+
+/*魔改一下，找到优先级最高的，把他放在队头，再用pop的函数*/
+struct list_elem *
+list_pop_PRIMAX(struct list *list)
+{
+  list_sort(list,T_CMP,NULL);
+  return list_pop_front(list);
+}
+
+
 static struct thread *
-next_thread_to_run (void) 
+next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  else{
+    return list_entry (list_pop_PRIMAX (&ready_list), struct thread, elem);
+  }
 }
+
 
 /* Completes a thread switch by activating the new thread's page
    tables, and, if the previous thread is dying, destroying it.
