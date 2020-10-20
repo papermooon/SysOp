@@ -206,6 +206,23 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  /*一样的，新建一个thread的时候就要看看当前的优先级和他的谁更高？*/
+  if(thread_current()->priority>=t->priority)
+  {
+    //不必要的时候就不要重排了
+  }
+  else{
+    enum intr_level just_now2;
+    just_now2=intr_disable();
+
+      list_push_front(&ready_list,&thread_current()->elem);//这里无所谓，反正要重排；
+      thread_current()->status=THREAD_READY;
+      schedule();
+
+    intr_set_level(just_now2);
+  }
+/////////////////////////////////////////////////////////
+ 
   return tid;
 }
 
@@ -340,7 +357,19 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  //直接重新调度得了？先改状态，再关中断，再放进队列，再排一下，再打开中断       -----就是优先级变化的瞬间必须做出反应
+  enum intr_level just_now;
+  just_now=intr_disable();
+
+   
+    thread_current ()->priority = new_priority;//原来就这一句
+    list_push_front(&ready_list,&thread_current()->elem);//这里无所谓，反正要重排；
+    thread_current()->status=THREAD_READY;
+    
+    schedule();
+
+  intr_set_level(just_now);
+  /////////////////////////////////////////////////////////////////
 }
 
 /* Returns the current thread's priority. */
