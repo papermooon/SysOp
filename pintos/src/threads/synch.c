@@ -105,6 +105,23 @@ sema_try_down (struct semaphore *sema)
    and wakes up one thread of those waiting for SEMA, if any.
 
    This function may be called from an interrupt handler. */
+
+/*自己魔改的东西再次复用*/
+/*魔改一下，找到优先级最高的*/
+bool T_CMP2(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+  if(list_entry(a,struct thread,elem)->priority > list_entry(b,struct thread,elem)->priority)
+    return true;
+  return false;
+}
+
+/*魔改一下，找到优先级最高的，把他放在队头，再用pop的函数*/
+struct list_elem *
+list_pop_PRIMAX2(struct list *list)
+{
+  list_sort(list,T_CMP2,NULL);
+  return list_pop_front(list);
+}
+
 void
 sema_up (struct semaphore *sema) 
 {
@@ -114,10 +131,12 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+    thread_unblock (list_entry (list_pop_PRIMAX2 (&sema->waiters),
+                                struct thread, elem));//每次选的还是优先级最高的！！！！！！！！！！！，原来只是选一个最前面的
   sema->value++;
   intr_set_level (old_level);
+  
+  thread_yield();//交出主动权！！！！！！！！！！！！！！！！！！！！！！！！！！！
 }
 
 static void sema_test_helper (void *sema_);
@@ -308,6 +327,17 @@ cond_wait (struct condition *cond, struct lock *lock)
    An interrupt handler cannot acquire a lock, so it does not
    make sense to try to signal a condition variable within an
    interrupt handler. */
+
+/*魔改一下，找到优先级最高的*/
+bool C_CMP(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+
+  struct semaphore_elem *sa = list_entry(a,struct semaphore_elem,elem);
+  struct semaphore_elem *sb = list_entry(b,struct semaphore_elem,elem);
+    return list_entry(list_front(&sa->semaphore.waiters),struct thread,elem)->priority > 
+           list_entry(list_front(&sb->semaphore.waiters),struct thread,elem)->priority;
+}
+
+
 void
 cond_signal (struct condition *cond, struct lock *lock UNUSED) 
 {
@@ -317,8 +347,13 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock_held_by_current_thread (lock));
 
   if (!list_empty (&cond->waiters)) 
+  {
+    list_sort(&cond->waiters,C_CMP,NULL); //这个等待队列直接重排吧；
+
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
+  }
+   
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
